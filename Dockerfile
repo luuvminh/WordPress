@@ -1,11 +1,14 @@
 FROM wordpress:php8.2-apache
 
-# The Apache binary in this image has mpm_prefork compiled in as default.
-# Loading mpm_prefork.load (or mpm_event.load) from mods-enabled on top
-# of the built-in causes AH00534 "More than one MPM loaded".
-# Fix: remove ALL mpm module files - the built-in prefork will be used.
-RUN rm -f /etc/apache2/mods-enabled/mpm_*.conf \
-          /etc/apache2/mods-enabled/mpm_*.load
+# DIAGNOSTIC: show exactly where Apache's MPM config lives
+RUN echo "=== which apache2 ===" && which apache2 2>/dev/null || true \
+    && echo "=== apache2-foreground script ===" && cat /usr/local/bin/apache2-foreground 2>/dev/null || true \
+    && echo "=== /usr/local/apache2/conf/httpd.conf LoadModule mpm lines ===" \
+    && grep -n "mpm" /usr/local/apache2/conf/httpd.conf 2>/dev/null || echo "(no httpd.conf)" \
+    && echo "=== /etc/apache2/mods-enabled mpm files ===" \
+    && ls -la /etc/apache2/mods-enabled/ 2>/dev/null | grep mpm || echo "(no mods-enabled mpm files)" \
+    && echo "=== all mpm.load files in /usr/local ===" \
+    && find /usr/local -name "*mpm*" 2>/dev/null || echo "(none)"
 
 COPY wp-content/ /var/www/html/wp-content/
 
