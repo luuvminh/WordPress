@@ -7,7 +7,18 @@ HTACCESS="/var/www/html/.htaccess"
 MUDIR="/var/www/html/wp-content/mu-plugins"
 MUPLUGIN="$MUDIR/fix-htaccess.php"
 
-# Deploy mu-plugin so WordPress always prepends FollowSymLinks when regenerating .htaccess
+# Write clean WordPress .htaccess (no PHP-blocking rules)
+write_clean_htaccess() {
+    printf 'Options +FollowSymLinks\n# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n' > "$HTACCESS"
+    echo "=== fix-wordpress: .htaccess reset to clean standard ===" >&2
+}
+
+# Check if .htaccess contains PHP-blocking rules from security plugins
+htaccess_blocked() {
+    grep -qiE '<Files[^>]*\.php|Deny from all|Require all denied' "$HTACCESS" 2>/dev/null
+}
+
+# Deploy mu-plugin so WordPress always prepends FollowSymLinks on .htaccess regeneration
 mkdir -p "$MUDIR"
 cat > "$MUPLUGIN" << 'MUEOF'
 <?php
@@ -20,19 +31,30 @@ add_filter('mod_rewrite_rules', function($rules) {
 }, 1);
 MUEOF
 
-# Fix .htaccess: detect and remove PHP-blocking rules written by security plugins
-echo "=== fix-wordpress: checking .htaccess ===" >&2
-if grep -qiE 'FilesMatch[^>]*php|<Files[^>]*php|Deny from all|Require all denied' "$HTACCESS" 2>/dev/null; then
-    echo "=== PHP-blocking rules found - resetting .htaccess ===" >&2
-    printf 'Options +FollowSymLinks\n# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n' > "$HTACCESS"
-    echo "=== .htaccess reset to clean WordPress standard ===" >&2
+# Startup fix
+echo "=== fix-wordpress: startup check ===" >&2
+if htaccess_blocked; then
+    echo "=== fix-wordpress: PHP-blocking rules found at startup - resetting ===" >&2
+    write_clean_htaccess
 elif ! grep -q 'FollowSymLinks' "$HTACCESS" 2>/dev/null; then
     printf 'Options +FollowSymLinks\n' > /tmp/htfix
     cat "$HTACCESS" >> /tmp/htfix 2>/dev/null
     mv /tmp/htfix "$HTACCESS"
-    echo "=== FollowSymLinks prepended to .htaccess ===" >&2
+    echo "=== fix-wordpress: FollowSymLinks prepended ===" >&2
 fi
-echo "=== fix-wordpress: done ===" >&2
+echo "=== fix-wordpress: startup done ===" >&2
+
+# Background watchdog: check every 5 seconds and fix if a security plugin re-adds blocking rules
+(
+    while true; do
+        sleep 5
+        if htaccess_blocked; then
+            echo "=== fix-wordpress: WATCHDOG detected PHP-blocking rules - resetting ===" >&2
+            write_clean_htaccess
+        fi
+    done
+) &
+echo "=== fix-wordpress: watchdog started (PID $!) ===" >&2
 SCRIPTEOF
 RUN chmod +x /usr/local/bin/fix-wordpress.sh
 
