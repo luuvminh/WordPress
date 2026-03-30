@@ -18,6 +18,37 @@ htaccess_blocked() {
     grep -qiE '<Files[^>]*\.php|Deny from all|Require all denied' "$HTACCESS" 2>/dev/null
 }
 
+# === SECURITY: Restore core WordPress files from the clean Docker image source ===
+echo "=== fix-wordpress: restoring core WP files from clean image ===" >&2
+if [ -d "/usr/src/wordpress" ]; then
+    for f in /usr/src/wordpress/*.php; do
+        fname=$(basename "$f")
+        cp -f "$f" "/var/www/html/$fname" 2>/dev/null
+    done
+    cp -rf /usr/src/wordpress/wp-includes /var/www/html/ 2>/dev/null
+    cp -rf /usr/src/wordpress/wp-admin /var/www/html/ 2>/dev/null
+    echo "=== fix-wordpress: core files restored ===" >&2
+fi
+
+# === SECURITY: Remove plugin files with known malware signatures ===
+echo "=== fix-wordpress: scanning plugins for malware ===" >&2
+PLUGINS_DIR="/var/www/html/wp-content/plugins"
+if [ -d "$PLUGINS_DIR" ]; then
+    find "$PLUGINS_DIR" -name "*.php" | while read f; do
+        if grep -qE 'yrxc_uck|FilesMan|r57shell|c99shell|eval\(base64_decode|eval\(gzinflate|eval\(str_rot13' "$f" 2>/dev/null; then
+            echo "=== fix-wordpress: MALWARE removed: $f ===" >&2
+            rm -f "$f"
+        fi
+    done
+fi
+
+# === DEBUG: Enable WP_DEBUG_LOG so errors are written to wp-content/debug.log ===
+WPCONFIG="/var/www/html/wp-config.php"
+if [ -f "$WPCONFIG" ] && ! grep -q 'WP_DEBUG_LOG' "$WPCONFIG"; then
+    sed -i "s|define( 'DB_NAME'|define('WP_DEBUG', true);\ndefine('WP_DEBUG_LOG', true);\ndefine('WP_DEBUG_DISPLAY', false);\ndefine( 'DB_NAME'|" "$WPCONFIG"
+    echo "=== fix-wordpress: WP_DEBUG_LOG enabled ===" >&2
+fi
+
 # Deploy mu-plugin so WordPress always prepends FollowSymLinks on .htaccess regeneration
 mkdir -p "$MUDIR"
 cat > "$MUPLUGIN" << 'MUEOF'
@@ -44,7 +75,7 @@ elif ! grep -q 'FollowSymLinks' "$HTACCESS" 2>/dev/null; then
 fi
 echo "=== fix-wordpress: startup done ===" >&2
 
-# Background watchdog: check every 5 seconds and fix if a security plugin re-adds blocking rules
+# Background watchdog: reset .htaccess if security plugin re-adds PHP-blocking rules
 (
     while true; do
         sleep 5
