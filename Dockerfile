@@ -12,7 +12,6 @@ write_clean_htaccess() {
     printf 'Options +FollowSymLinks\n# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n' > "$HTACCESS"
     echo "=== fix-wordpress: .htaccess reset to clean standard ===" >&2
 }
-
 # Check if .htaccess contains PHP-blocking rules from security plugins
 htaccess_blocked() {
     grep -qiE '<Files[^>]*\.php|Deny from all|Require all denied' "$HTACCESS" 2>/dev/null
@@ -62,7 +61,23 @@ add_filter('mod_rewrite_rules', function($rules) {
 }, 1);
 MUEOF
 
-# Startup fix
+# === INSTALL: Restore Ashe theme if missing after container rebuild ===
+THEMES_DIR="/var/www/html/wp-content/themes"
+if [ ! -d "$THEMES_DIR/ashe" ]; then
+    echo "=== fix-wordpress: Ashe theme missing - downloading from WordPress.org ===" >&2
+        curl -sL -o /tmp/ashe.zip "https://downloads.wordpress.org/theme/ashe.latest-stable.zip" 2>/dev/null
+            if [ -f /tmp/ashe.zip ] && [ -s /tmp/ashe.zip ]; then
+                    unzip -q /tmp/ashe.zip -d "$THEMES_DIR/" 2>/dev/null
+                            chown -R www-data:www-data "$THEMES_DIR/ashe" 2>/dev/null
+                                    rm -f /tmp/ashe.zip
+                                            echo "=== fix-wordpress: Ashe theme installed ===" >&2
+                                                else
+                                                        echo "=== fix-wordpress: WARNING - Ashe download failed ===" >&2
+                                                                rm -f /tmp/ashe.zip
+                                                                    fi
+                                                                    fi
+                                                                    
+                                                                    # Startup fix
 echo "=== fix-wordpress: startup check ===" >&2
 if htaccess_blocked; then
     echo "=== fix-wordpress: PHP-blocking rules found at startup - resetting ===" >&2
