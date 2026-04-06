@@ -1,0 +1,73 @@
+/*
+Theme Name: MaxLau Seth
+Theme URI: https://maxlau.social
+Author: Max Lau
+Description: Minimalist blog theme inspired by Seth's Blog. Source Sans Pro 900 headings, PT Serif body.
+Version: 1.0.0
+Text Domain: maxlau-seth
+*/
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 16px; }
+body { font-family: 'PT Serif', serif; color: #1a1a1a; background: #fff; line-height: 1.7; letter-spacing: -0.03em; -webkit-font-smoothing: antialiased; }
+a { color: #1a1a1a; } a:hover { color: #555; }
+.top-bar { height: 6px; background: linear-gradient(to right, #e8973e, #f0b84d, #e8973e); }
+.site-wrapper { display: flex; max-width: 1100px; margin: 0 auto; padding: 0 24px; gap: 32px; }
+.sidebar { width: 280px; flex-shrink: 0; padding-top: 36px; border-right: 1px solid #e8e8e8; padding-right: 28px; position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto; }
+.sidebar-header { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+.avatar { width: 72px; height: 72px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Source Sans Pro', sans-serif; font-weight: 900; font-size: 26px; flex-shrink: 0; overflow: hidden; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.site-title { font-family: 'Bebas Neue', 'Impact', sans-serif; font-size: 36px; font-weight: 400; letter-spacing: 0.04em; color: #000; text-decoration: none; text-transform: uppercase; line-height: 1; }
+.sidebar .widget, .sidebar-section { margin-bottom: 24px; }
+.sidebar .widget-title, .sidebar-section h3 { font-family: 'Source Sans Pro', sans-serif; font-size: 16px; font-weight: 900; color: #000; margin-bottom: 2px; }
+.sidebar .widget ul, .sidebar-section ul { list-style: none; padding: 0; }
+.sidebar .widget li, .sidebar-section li { margin-bottom: 4px; }
+.sidebar .widget a, .sidebar-section a { font-family: 'PT Serif', serif; font-size: 15px; color: #333; text-decoration: none; }
+.sidebar .widget a:hover, .sidebar-section a:hover { text-decoration: underline; }
+.search-form, .search-box { display: flex; border: 1px solid #000; border-radius: 5px; overflow: hidden; margin-bottom: 8px; }
+.search-form .search-field, .search-box input { flex: 1; padding: 7px 10px; border: none; font-family: 'PT Serif', serif; font-size: 14px; outline: none; height: 35px; min-width: 0; }
+.search-form .search-submit, .search-box button { background: #000; color: #fff; border: none; padding: 0 14px; cursor: pointer; font-size: 18px; height: 35px; flex-shrink: 0; }
+.subscribe-box { display: flex; border: 1px solid #ffb900; border-radius: 5px; overflow: hidden; margin-bottom: 6px; }
+.subscribe-box input { flex: 1; padding: 7px 10px; border: none; font-family: 'PT Serif', serif; font-size: 14px; outline: none; height: 35px; min-width: 0; }
+.subscribe-box button { background: #ffb900; color: #000; border: none; padding: 0 14px; cursor: pointer; font-family: 'Source Sans Pro', sans-serif; font-weight: 700; font-size: 14px; white-space: nowrap; flex-shrink: 0; height: 35px; }
+.email-terms { font-family: 'PT Serif', serif; font-size: 13px; color: #999; text-align: center; margin-bottom: 20px; }
+.email-terms a { color: #999; }
+.main-content { flex: 1; min-width: 0; padding-top: 36px; max-width: 640px; }
+.post, .page, article.hentry { margin-bottom: 36px; padding-bottom: 36px; }
+.entry-title, .post-title { font-family: 'Source Sans Pro', sans-serif; font-size: 35px; font-weight: 900; line-height: 1.1; margin-bottom: 16px; color: #000; }
+.entry-title a, .post-title a { text-decoration: none; color: #000; }
+.entry-title a:hover, .post-title a:hover { text-decoration: underline; }
+.entry-content, .post-body { font-family: 'PT Serif', serif; font-size: 17.6px; line-height: 1.55; color: #1a1a1a; }
+.entry-content p, .post-body p { margin-bottom: 1.1em; }
+.entry-content p:last-child, .post-body p:last-child { margin-bottom: 0; }
+.entry-content a { text-decoration: underline; text-underline-offset: 3px; }
+.entry-content img { max-width: 100%; height: auto; }
+.entry-content blockquote { border-left: 3px solid #e8973e; padding-left: 20px; margin: 1.2em 0; font-style: italic; color: #555; }
+.entry-content h2, .entry-content h3, .entry-content h4 { font-family: 'Source Sans Pro', sans-serif; font-weight: 900; color: #000; margin: 1.4em 0 0.6em; }
+.entry-content h2 { font-size: 28px; } .entry-content h3 { font-size: 22px; } .entry-content h4 { font-size: 18px; }
+.entry-content ul, .entry-content ol { margin: 1em 0; padding-left: 1.5em; }
+.post-meta, .entry-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 14px; border-top: 1px solid #eee; }
+.post-date, .entry-date { font-family: 'Source Sans Pro', sans-serif; font-size: 13px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.03em; }
+.share-icons { display: flex; gap: 12px; }
+.share-icons a { color: #333; font-size: 16px; text-decoration: none; }
+.share-icons a:hover { color: #e8973e; }
+.comments-area { margin-top: 32px; padding-top: 24px; border-top: 1px solid #eee; }
+.comments-title, .comment-reply-title { font-family: 'Source Sans Pro', sans-serif; font-size: 22px; font-weight: 900; color: #000; margin-bottom: 16px; }
+.comment-list { list-style: none; padding: 0; }
+.comment-body { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #f0f0f0; }
+.comment-author { font-family: 'Source Sans Pro', sans-serif; font-weight: 700; font-size: 15px; }
+.comment-content { font-family: 'PT Serif', serif; font-size: 15px; line-height: 1.6; margin-top: 6px; }
+.comment-form input[type="text"], .comment-form input[type="email"], .comment-form input[type="url"], .comment-form textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 5px; font-family: 'PT Serif', serif; font-size: 14px; outline: none; margin-bottom: 12px; }
+.comment-form textarea { min-height: 120px; }
+.comment-form input[type="submit"] { background: #000; color: #fff; border: none; padding: 10px 24px; border-radius: 5px; font-family: 'Source Sans Pro', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; }
+.pagination, .nav-links { margin-top: 32px; font-family: 'Source Sans Pro', sans-serif; font-size: 14px; font-weight: 700; }
+.pagination a, .nav-links a { color: #000; text-decoration: none; padding: 6px 12px; border: 1px solid #ddd; border-radius: 3px; }
+.pagination a:hover, .nav-links a:hover { background: #000; color: #fff; }
+.site-footer { margin-top: 24px; padding: 24px; text-align: center; font-family: 'PT Serif', serif; font-size: 13px; color: #bbb; border-top: 1px solid #e8e8e8; }
+.site-footer a { color: #999; }
+.error-404 .entry-title { font-size: 48px; }
+@media (max-width: 768px) {
+  .site-wrapper { flex-direction: column; gap: 0; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #e8e8e8; padding-right: 0; padding-bottom: 24px; position: static; max-height: none; }
+  .entry-title, .post-title { font-size: 28px; }
+  .entry-content, .post-body { font-size: 16px; }
+}
