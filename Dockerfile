@@ -6,65 +6,81 @@ RUN curl -sL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/build
 
 RUN cat > /usr/local/bin/fix-wordpress.sh << 'SCRIPTEOF'
 #!/bin/sh
-HTACCESS="/var/www/html/.htaccess"
-MUDIR="/var/www/html/wp-content/mu-plugins"
-MUPLUGIN="$MUDIR/fix-htaccess.php"
+# === fix-wordpress.sh ===
+# .htaccess is IGNORED by Apache (AllowOverride None in server config).
+# Rewrite rules live in /etc/apache2/conf-enabled/wp-rewrite.conf.
+# No watchdog needed — plugins cannot break the site via .htaccess anymore.
 
-write_clean_htaccess() {
-    printf 'Options +FollowSymLinks\n# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n' > "$HTACCESS"
-    echo "=== fix-wordpress: .htaccess reset ===" >&2
-}
-htaccess_blocked() {
-    grep -qiE '<Files[^>]*\.php|Deny from all|Require all denied' "$HTACCESS" 2>/dev/null
-}
+WP_PATH="/var/www/html"
+MUDIR="$WP_PATH/wp-content/mu-plugins"
+THEMES_DIR="$WP_PATH/wp-content/themes"
+PLUGINS_DIR="$WP_PATH/wp-content/plugins"
 
+# --- Re-enforce Apache config at runtime (survives volume mounts) ---
+echo "=== fix-wordpress: enforcing Apache rewrite config ===" >&2
+printf '<Directory /var/www/html>\n    Options +FollowSymLinks\n    AllowOverride None\n    DirectoryIndex index.php index.html\n    <IfModule mod_rewrite.c>\n        RewriteEngine On\n        RewriteBase /\n        RewriteRule ^index\\.php$ - [L]\n        RewriteCond %%{REQUEST_FILENAME} !-f\n        RewriteCond %%{REQUEST_FILENAME} !-d\n        RewriteRule . /index.php [L]\n    </IfModule>\n</Directory>\n' > /etc/apache2/conf-available/wp-rewrite.conf
+a2enconf wp-rewrite 2>/dev/null || true
+
+# --- Restore core WP files from image source ---
 echo "=== fix-wordpress: restoring core WP files ===" >&2
 if [ -d "/usr/src/wordpress" ]; then
-    for f in /usr/src/wordpress/*.php; do fname=$(basename "$f"); cp -f "$f" "/var/www/html/$fname" 2>/dev/null; done
-    cp -rf /usr/src/wordpress/wp-includes /var/www/html/ 2>/dev/null
-    cp -rf /usr/src/wordpress/wp-admin /var/www/html/ 2>/dev/null
+    for f in /usr/src/wordpress/*.php; do fname=$(basename "$f"); cp -f "$f" "$WP_PATH/$fname" 2>/dev/null; done
+    cp -rf /usr/src/wordpress/wp-includes "$WP_PATH/" 2>/dev/null
+    cp -rf /usr/src/wordpress/wp-admin "$WP_PATH/" 2>/dev/null
 fi
 
+# --- Scan plugins for known malware signatures ---
 echo "=== fix-wordpress: scanning plugins for malware ===" >&2
-PLUGINS_DIR="/var/www/html/wp-content/plugins"
 if [ -d "$PLUGINS_DIR" ]; then
     find "$PLUGINS_DIR" -name "*.php" | while read f; do
         if grep -qE 'yrxc_uck|FilesMan|r57shell|c99shell|eval\(base64_decode|eval\(gzinflate|eval\(str_rot13' "$f" 2>/dev/null; then
             rm -f "$f"
+            echo "=== fix-wordpress: removed malware: $f ===" >&2
         fi
     done
 fi
 
-WPCONFIG="/var/www/html/wp-config.php"
+# --- Nuke any security plugins that write .htaccess blocking rules ---
+for BAD_PLUGIN in "wordfence" "sucuri-scanner" "all-in-one-wp-security-and-firewall" "ithemes-security" "bulletproof-security"; do
+    if [ -d "$PLUGINS_DIR/$BAD_PLUGIN" ]; then
+        rm -rf "$PLUGINS_DIR/$BAD_PLUGIN"
+        echo "=== fix-wordpress: removed problematic plugin: $BAD_PLUGIN ===" >&2
+    fi
+done
+
+# --- Enable WP debug logging ---
+WPCONFIG="$WP_PATH/wp-config.php"
 if [ -f "$WPCONFIG" ] && ! grep -q 'WP_DEBUG_LOG' "$WPCONFIG"; then
     sed -i "s|define( 'DB_NAME'|define('WP_DEBUG', true);\ndefine('WP_DEBUG_LOG', true);\ndefine('WP_DEBUG_DISPLAY', false);\ndefine( 'DB_NAME'|" "$WPCONFIG"
 fi
 
+# --- Deploy mu-plugin (informational only since .htaccess is ignored) ---
 mkdir -p "$MUDIR"
-cat > "$MUPLUGIN" << 'MUEOF'
+cat > "$MUDIR/fix-htaccess.php" << 'MUEOF'
 <?php
+// .htaccess is ignored (AllowOverride None). This mu-plugin is a safety net
+// in case AllowOverride is ever re-enabled.
 add_filter('mod_rewrite_rules', function($rules) {
-    if (strpos($rules, 'FollowSymLinks') === false) { $rules = "Options +FollowSymLinks\n" . $rules; }
+    // Strip any PHP-blocking rules
+    $rules = preg_replace('/<Files[^>]*\.php.*?<\/Files\w*>/si', '', $rules);
+    if (strpos($rules, 'FollowSymLinks') === false) {
+        $rules = "Options +FollowSymLinks\n" . $rules;
+    }
     return $rules;
 }, 1);
 MUEOF
 
-THEMES_DIR="/var/www/html/wp-content/themes"
+# --- Ensure Ashe fallback theme exists ---
 if [ ! -d "$THEMES_DIR/ashe" ] && [ -d "/usr/local/ashe-theme" ]; then
     cp -r /usr/local/ashe-theme "$THEMES_DIR/ashe"
     chown -R www-data:www-data "$THEMES_DIR/ashe"
 fi
 
-if htaccess_blocked; then
-    write_clean_htaccess
-elif ! grep -q 'FollowSymLinks' "$HTACCESS" 2>/dev/null; then
-    printf 'Options +FollowSymLinks\n' > /tmp/htfix
-    cat "$HTACCESS" >> /tmp/htfix 2>/dev/null
-    mv /tmp/htfix "$HTACCESS"
-fi
+# --- Clean .htaccess (it's ignored but keep it tidy) ---
+printf '# .htaccess is IGNORED by Apache (AllowOverride None).\n# Rewrite rules are in /etc/apache2/conf-enabled/wp-rewrite.conf\n# Do not edit this file — it has no effect.\n' > "$WP_PATH/.htaccess"
 
-WP_PATH="/var/www/html"
-if command -v wp >/dev/null 2>&1 && [ -f "$WP_PATH/wp-config.php" ]; then
+# --- Activate theme and reset password via WP-CLI ---
+if command -v wp >/dev/null 2>&1 && [ -f "$WPCONFIG" ]; then
     wp user update maxlau --user_pass='admin123' --allow-root --path="$WP_PATH" 2>/dev/null || true
     CURRENT_THEME=$(wp option get template --allow-root --path="$WP_PATH" 2>/dev/null)
     if [ "$CURRENT_THEME" != "maxlau-seth" ] && [ -d "$THEMES_DIR/maxlau-seth" ]; then
@@ -73,8 +89,7 @@ if command -v wp >/dev/null 2>&1 && [ -f "$WP_PATH/wp-config.php" ]; then
     fi
 fi
 
-echo "=== fix-wordpress: startup done ===" >&2
-(while true; do sleep 5; if htaccess_blocked; then write_clean_htaccess; fi; done) &
+echo "=== fix-wordpress: startup complete — .htaccess DISABLED, rewrite in server config ===" >&2
 SCRIPTEOF
 RUN chmod +x /usr/local/bin/fix-wordpress.sh
 
@@ -90,9 +105,25 @@ RUN { head -1 /usr/local/bin/apache2-foreground; \
     && mv /tmp/apache2-foreground /usr/local/bin/apache2-foreground \
     && chmod +x /usr/local/bin/apache2-foreground
 
-RUN printf '<Directory /var/www/html>\n    Options +FollowSymLinks\n</Directory>\n' \
-    > /etc/apache2/conf-available/wp-followsymlinks.conf \
-    && a2enconf wp-followsymlinks
+# === NUCLEAR FIX: Disable .htaccess entirely, put rewrite rules in server config ===
+# This prevents ANY plugin from EVER breaking the site via .htaccess
+RUN printf '<Directory /var/www/html>\n\
+    Options +FollowSymLinks\n\
+    AllowOverride None\n\
+    DirectoryIndex index.php index.html\n\
+    <IfModule mod_rewrite.c>\n\
+        RewriteEngine On\n\
+        RewriteBase /\n\
+        RewriteRule ^index\\.php$ - [L]\n\
+        RewriteCond %%{REQUEST_FILENAME} !-f\n\
+        RewriteCond %%{REQUEST_FILENAME} !-d\n\
+        RewriteRule . /index.php [L]\n\
+    </IfModule>\n\
+</Directory>\n' \
+    > /etc/apache2/conf-available/wp-rewrite.conf \
+    && a2enconf wp-rewrite \
+    && rm -f /etc/apache2/conf-available/wp-followsymlinks.conf \
+    && rm -f /etc/apache2/conf-enabled/wp-followsymlinks.conf
 
 COPY wp-content/themes/ashe /usr/local/ashe-theme/
 COPY wp-content/ /var/www/html/wp-content/
